@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  GESTOR
+  OPERADOR
+  SOLICITANTE
+  CONSULTA
+}
+
+enum WarehouseType {
+  INSUMOS_MEDICAMENTOS
+  ADMINISTRATIVO
+}
+
+enum ProductType {
+  INSUMO
+  MEDICAMENTO
+  MATERIAL_ADMINISTRATIVO
+  OUTRO
+}
+
+enum MovementType {
+  ENTRADA_COMPRA
+  ENTRADA_DEVOLUCAO
+  ENTRADA_TRANSFERENCIA
+  ENTRADA_DOACAO
+  ENTRADA_IMPLANTACAO
+  SAIDA_ATENDIMENTO
+  SAIDA_CONSUMO
+  SAIDA_DEVOLUCAO_FORNECEDOR
+  SAIDA_PERDA
+  SAIDA_TRANSFERENCIA
+  AJUSTE_INVENTARIO
+  OUTRO
+}
+
+enum RequestStatus {
+  RASCUNHO
+  PENDENTE
+  EM_ANALISE
+  APROVADA
+  APROVADA_PARCIALMENTE
+  REJEITADA
+  EM_ATENDIMENTO
+  ATENDIDA
+  ATENDIDA_PARCIALMENTE
+  CANCELADA
+}
+
+enum TransferStatus {
+  PENDENTE
+  SAIDA_CONFIRMADA
+  RECEBIDA
+  CANCELADA
+}
+
+enum InventoryStatus {
+  ABERTO
+  EM_CONTAGEM
+  CONFERIDO
+  AJUSTADO
+  CONCLUIDO
+  CANCELADO
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String   @unique
+  passwordHash String
+  active       Boolean  @default(true)
+  role         UserRole
+  sectorId     String?  @db.ObjectId
+  sector       Sector?  @relation(fields: [sectorId], references: [id])
+  warehouseIds String[] @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stockMovements StockMovement[]
+  requests       MaterialRequest[] @relation("RequestRequester")
+  transfers      Transfer[]
+  inventories    Inventory[]
+  auditLogs      AuditLog[]
+}
+
+model Sector {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  requests MaterialRequest[]
+}
+
+model Warehouse {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  code        String        @unique
+  name        String
+  type        WarehouseType
+  location    String?
+  responsible String?
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  stocks              Stock[]
+  batches             Batch[]
+  movementsFrom       StockMovement[]   @relation("MovementFromWarehouse")
+  movementsTo         StockMovement[]   @relation("MovementToWarehouse")
+  requestsAsOrigin    MaterialRequest[] @relation("RequestOriginWarehouse")
+  transfersFrom       Transfer[]        @relation("TransferFrom")
+  transfersTo         Transfer[]        @relation("TransferTo")
+  inventories         Inventory[]
+}
+
+model Category {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  code      String    @unique
+  name      String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Unit {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  code      String    @unique
+  name      String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  code            String      @unique
+  name            String
+  description     String?
+  categoryId      String      @db.ObjectId
+  category        Category    @relation(fields: [categoryId], references: [id])
+  unitId          String      @db.ObjectId
+  unit            Unit        @relation(fields: [unitId], references: [id])
+  type            ProductType
+  minStock        Float       @default(0)
+  maxStock        Float?
+  reorderPoint    Float?
+  requiresBatch   Boolean     @default(false)
+  active          Boolean     @default(true)
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  stocks          Stock[]
+  batches         Batch[]
+  movements       StockMovement[]
+  requestItems    RequestItem[]
+  transferItems   TransferItem[]
+  inventoryItems  InventoryItem[]
+
+  @@index([name])
+  @@index([active])
+}
+
+model Stock {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  productId   String    @db.ObjectId
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouseId String    @db.ObjectId
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  physicalQty Float     @default(0)
+  reservedQty Float     @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([productId, warehouseId])
+  @@index([warehouseId])
+}
+
+model Batch {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  productId   String    @db.ObjectId
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouseId String    @db.ObjectId
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  lotNumber   String
+  expiresAt   DateTime?
+  quantity    Float     @default(0)
+  manufacturer String?
+  supplier    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([productId, warehouseId])
+  @@index([expiresAt])
+}
+
+model StockMovement {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  type            MovementType
+  productId       String        @db.ObjectId
+  product         Product       @relation(fields: [productId], references: [id])
+  warehouseFromId String?       @db.ObjectId
+  warehouseFrom   Warehouse?    @relation("MovementFromWarehouse", fields: [warehouseFromId], references: [id])
+  warehouseToId   String?       @db.ObjectId
+  warehouseTo     Warehouse?    @relation("MovementToWarehouse", fields: [warehouseToId], references: [id])
+  quantity        Float
+  userId          String        @db.ObjectId
+  user            User          @relation(fields: [userId], references: [id])
+  referenceType   String?
+  referenceId     String?
+  documentRef     String?
+  notes           String?
+  batchId         String?       @db.ObjectId
+  idempotencyKey  String?       @unique
+  createdAt       DateTime      @default(now())
+
+  @@index([productId])
+  @@index([warehouseFromId])
+  @@index([warehouseToId])
+  @@index([createdAt])
+  @@index([referenceType, referenceId])
+}
+
+model MaterialRequest {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  number            String        @unique
+  status            RequestStatus @default(RASCUNHO)
+  requesterId       String        @db.ObjectId
+  requester         User          @relation("RequestRequester", fields: [requesterId], references: [id])
+  sectorId          String        @db.ObjectId
+  sector            Sector        @relation(fields: [sectorId], references: [id])
+  originWarehouseId String?       @db.ObjectId
+  originWarehouse   Warehouse?    @relation("RequestOriginWarehouse", fields: [originWarehouseId], references: [id])
+  notes             String?
+  submittedAt       DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  items RequestItem[]
+
+  @@index([status])
+  @@index([requesterId])
+  @@index([createdAt])
+}
+
+model RequestItem {
+  id               String          @id @default(auto()) @map("_id") @db.ObjectId
+  requestId        String          @db.ObjectId
+  request          MaterialRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  productId        String          @db.ObjectId
+  product          Product         @relation(fields: [productId], references: [id])
+  quantityRequested Float
+  quantityApproved Float           @default(0)
+  quantityFulfilled Float          @default(0)
+  quantityPending  Float           @default(0)
+
+  @@index([requestId])
+}
+
+model Transfer {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  number          String         @unique
+  status          TransferStatus @default(PENDENTE)
+  fromWarehouseId String         @db.ObjectId
+  fromWarehouse   Warehouse      @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String         @db.ObjectId
+  toWarehouse     Warehouse      @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  createdById     String         @db.ObjectId
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  notes           String?
+  exitConfirmedAt DateTime?
+  receivedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  items TransferItem[]
+
+  @@index([status])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+}
+
+model TransferItem {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  transferId String   @db.ObjectId
+  transfer   Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productId  String   @db.ObjectId
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Float
+
+  @@index([transferId])
+}
+
+model Inventory {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  warehouseId String          @db.ObjectId
+  warehouse   Warehouse       @relation(fields: [warehouseId], references: [id])
+  status      InventoryStatus @default(ABERTO)
+  responsibleId String        @db.ObjectId
+  responsible User            @relation(fields: [responsibleId], references: [id])
+  startedAt   DateTime        @default(now())
+  closedAt    DateTime?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  items InventoryItem[]
+
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model InventoryItem {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  inventoryId   String    @db.ObjectId
+  inventory     Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  productId     String    @db.ObjectId
+  product       Product   @relation(fields: [productId], references: [id])
+  expectedQty   Float
+  countedQty    Float?
+  variance      Float?
+  justification String?
+
+  @@index([inventoryId])
+}
+
+model AuditLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String?  @db.ObjectId
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entity     String
+  entityId   String?
+  context    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  key   String @unique
+  value Json
+}
