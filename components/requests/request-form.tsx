@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProductSelect } from "@/components/ui/product-select";
 
 type Product = { id: string; code: string; name: string };
 type Warehouse = { id: string; name: string };
@@ -205,26 +206,16 @@ export function RequestForm({
               >
                 <div className="space-y-2">
                   <Label htmlFor={`product-${row.key}`}>Produto *</Label>
-                  <select
+                  <ProductSelect
                     id={`product-${row.key}`}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    products={products}
                     value={row.productId}
-                    onChange={(event) =>
-                      updateRow(row.key, { productId: event.target.value })
+                    onChange={(productId) =>
+                      updateRow(row.key, { productId })
                     }
                     required
-                  >
-                    <option value="">Selecione...</option>
-                    {products.map((product) => (
-                      <option
-                        key={product.id}
-                        value={product.id}
-                        disabled={usedElsewhere.has(product.id)}
-                      >
-                        {product.code} - {product.name}
-                      </option>
-                    ))}
-                  </select>
+                    disabledIds={usedElsewhere}
+                  />
                 </div>
 
                 <div className="space-y-2">

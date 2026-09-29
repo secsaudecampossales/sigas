@@ -21,6 +21,7 @@ export const config = {
     "/configuracoes/:path*",
     "/auditoria/:path*",
     "/conta",
+    "/ajuda",
     "/api/produtos/:path*",
     "/api/estoque/:path*",
     "/api/movimentacoes/:path*",

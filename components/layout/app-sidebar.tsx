@@ -38,14 +38,14 @@ export function AppSidebar({ hiddenPaths }: { hiddenPaths?: string[] }) {
   const hidden = new Set(hiddenPaths ?? []);
 
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white md:flex md:flex-col">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
           SIGAS Saúde
         </p>
         <p className="text-sm text-slate-600">Gestão de Almoxarifado</p>
       </div>
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {navItems
           .filter(({ href }) => !hidden.has(href))
           .map(({ href, label, icon: Icon }) => {

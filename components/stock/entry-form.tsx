@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProductSelect } from "@/components/ui/product-select";
+import { useWarehouseSelection } from "@/lib/form/warehouse-prefs";
 import { ENTRY_TYPES, ENTRY_TYPE_LABELS } from "@/lib/stock/entry-types";
 
 type Product = { id: string; code: string; name: string };
@@ -19,7 +21,9 @@ export function EntryForm({
 }) {
   const router = useRouter();
   const [productId, setProductId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
+  // Pré-seleciona o almoxarifado (único disponível ou último usado).
+  const { warehouseId, setWarehouseId, remember } =
+    useWarehouseSelection(warehouses);
   const [quantity, setQuantity] = useState("");
   const [type, setType] = useState<string>(ENTRY_TYPES[0]);
   const [documentRef, setDocumentRef] = useState("");
@@ -74,6 +78,7 @@ export function EntryForm({
       }
 
       idempotencyKey.current = crypto.randomUUID();
+      remember(warehouseId);
       setSuccess(`Entrada de ${qty.toLocaleString("pt-BR")} un. registrada.`);
       setQuantity("");
       setDocumentRef("");
@@ -99,20 +104,13 @@ export function EntryForm({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="productId">Produto *</Label>
-          <select
+          <ProductSelect
             id="productId"
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            products={products}
             value={productId}
-            onChange={(event) => setProductId(event.target.value)}
+            onChange={setProductId}
             required
-          >
-            <option value="">Selecione...</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.code} - {product.name}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         <div className="space-y-2">
@@ -205,8 +203,9 @@ export function EntryForm({
           type="button"
           variant="outline"
           onClick={() => {
+            // Mantém o almoxarifado selecionado: quem registra várias
+            // entradas seguidas no mesmo local não precisa reselecionar.
             setProductId("");
-            setWarehouseId("");
             setQuantity("");
             setDocumentRef("");
             setNotes("");

@@ -4,12 +4,15 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useWarehouseSelection } from "@/lib/form/warehouse-prefs";
 
 type Warehouse = { id: string; name: string };
 
 export function InventoryForm({ warehouses }: { warehouses: Warehouse[] }) {
   const router = useRouter();
-  const [warehouseId, setWarehouseId] = useState("");
+  // Pré-seleciona o almoxarifado (único disponível ou último usado).
+  const { warehouseId, setWarehouseId, remember } =
+    useWarehouseSelection(warehouses);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -38,6 +41,7 @@ export function InventoryForm({ warehouses }: { warehouses: Warehouse[] }) {
         setError(data?.error ?? "Erro ao abrir o inventário.");
         return;
       }
+      remember(warehouseId);
       router.push(`/inventarios/${data.inventory.id}`);
       router.refresh();
     } catch {

@@ -8,8 +8,7 @@ import {
   CATALOG_IDS,
   SETTINGS_PERMISSION,
 } from "@/lib/config/catalogs";
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { AppHeader } from "@/components/layout/app-header";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { UserRole } from "@/generated/prisma/client";
 
@@ -50,18 +49,13 @@ export default async function DashboardLayout({
 
   return (
     <AuthSessionProvider>
-      <div className="flex min-h-screen bg-slate-50">
-        <AppSidebar
-          hiddenPaths={hiddenNavPaths(session.user.role as UserRole)}
-        />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AppHeader
-            userName={fresh?.name ?? session.user.name}
-            userRole={session.user.role}
-          />
-          <main className="flex-1 p-4 md:p-6">{children}</main>
-        </div>
-      </div>
+      <DashboardShell
+        userName={fresh?.name ?? session.user.name}
+        userRole={session.user.role}
+        hiddenPaths={hiddenNavPaths(session.user.role as UserRole)}
+      >
+        {children}
+      </DashboardShell>
     </AuthSessionProvider>
   );
 }

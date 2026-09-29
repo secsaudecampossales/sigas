@@ -42,7 +42,9 @@ configurações e trilha de auditoria.
 Prisma 7 + PostgreSQL (Supabase), bcrypt (10 rounds), jsPDF + AutoTable para PDF.
 
 **Módulos (páginas):** Dashboard, Produtos, Estoque, Entradas, Saídas, Solicitações,
-Transferências, Inventário, Relatórios, Usuários, Auditoria, Configurações.
+Transferências, Inventário, Relatórios, Usuários, Auditoria, Configurações,
+Minha conta (`/conta`, acessível pelo cabeçalho), Ajuda (`/ajuda` — fluxos,
+perfis e glossário, acessível a qualquer perfil autenticado).
 
 **Entidades principais:** `User`, `Warehouse`, `Sector`, `Category`, `Unit`, `Product`,
 `Stock` (saldo por produto×almoxarifado), `StockMovement`, `MaterialRequest` + `RequestItem`,
@@ -177,11 +179,13 @@ Cada usuário tem `warehouseIds` (lista de vínculos, até 50). Regras
 - Regra de negócio: apenas itens **ativos** aparecem nos selects de cadastro de produto
   (`/produtos/novo` filtra `active: true`); desativar não afeta produtos já vinculados.
 
-### 5.4 Produtos (`/produtos`, `/produtos/novo`, `/produtos/[id]`)
+### 5.4 Produtos (`/produtos`, `/produtos/novo`, `/produtos/[id]`, `/produtos/[id]/editar`)
 
 - Permissão de escrita: `products.manage` (ADMIN, OPERADOR). Leitura: qualquer perfil autenticado.
-- **Somente criação** — existe `POST /api/produtos`; não há edição/exclusão de produto.
-- Campos e validações:
+- As páginas de **criação e edição** exigem `products.manage` (painel “Sem permissão”
+  caso contrário); o detalhe é aberto a todos, mas o botão **Editar** só aparece para
+  quem tem `products.manage`.
+- **Criação** (`POST /api/produtos`, 201) e **edição** (`PATCH /api/produtos/[id]`, 200):
   - `code` (obrigatório, `trim`, único no banco) e `name` (obrigatório) → 409 se código duplicado
     (“Já existe um produto com o código …”).
   - `categoryId` e `unitId`: UUIDs obrigatórios e existentes → 400 caso contrário.
@@ -191,8 +195,17 @@ Cada usuário tem `warehouseIds` (lista de vínculos, até 50). Regras
   - `maxStock < minStock` → 400 (“O estoque máximo deve ser maior ou igual ao estoque mínimo.”).
   - `requiresBatch`: boolean (default `false`); `active`: boolean (default `true`).
   - `description`/`notes`: opcionais, vazios viram `null`.
-- Efeitos: 201 `{ product }` + auditoria `PRODUCT_CREATE`.
-- Detalhe do produto exibe ficha completa + endereços de navegação (sem edição).
+- **Edição é parcial** (mesmo padrão de usuários/configurações): só os campos enviados
+  são validados; comparação com o valor atual; **sem mudanças → 200 com o estado atual
+  e NENHUMA auditoria**. `active: false` desativa o produto (soft delete) — desativado
+  some dos selects de formulários, mas permanece em movimentações/histórico.
+- Efeitos: 201 `{ product }` + auditoria `PRODUCT_CREATE` (criação); 200 `{ product }` +
+  auditoria `PRODUCT_UPDATE` com `{code, changes: {campo: {from, to}}}` (edição).
+- Detalhe do produto exibe ficha completa + botões **Editar** (se `products.manage`) e **Voltar**.
+- **Simplicidade da tela:** mínimo/máximo, ponto de reordenação, descrição, observações,
+  lote e status ficam atrás do toggle **“Opções avançadas”** (recolhido na criação; abre
+  sozinho na edição quando o produto já usa algum campo avançado). Os campos continuam
+  sempre presentes no envio — só a visibilidade muda (ver 16.1).
 
 ---
 
@@ -223,6 +236,25 @@ Cada usuário tem `warehouseIds` (lista de vínculos, até 50). Regras
   desativação também **bloqueia o login**.
 - Edição no detalhe mostra o painel “Permissões do perfil” (chips) e omite o botão de
   desativar quando o alvo é o próprio usuário.
+
+### 6.1 Minha conta (`/conta`, `PATCH /api/conta`)
+
+- **Qualquer perfil autenticado** edita a própria conta (sem permissão especial);
+  anônimo → 307 via middleware.
+- `name`: mesma regra do cadastro (2–120, `trim`) → auditoria `USER_UPDATE` com
+  `context.changes = ["nome"]` e `self: true`.
+- `newPassword`: exige `currentPassword` presente e **correta** (verificada com
+  bcrypt) → 400 “Senha atual incorreta.” se errada; nova senha usa as mesmas regras
+  de `password` (8–72) e **deve ser diferente da atual**. Sucesso grava
+  `USER_PASSWORD_RESET` com `self: true` e reescreve o hash.
+- Trocar **só a senha** não obriga enviar o nome (e vice-versa); corpo sem mudanças
+  → 200 sem auditoria.
+- Conta desativada → 403 no próprio PATCH (“Conta desativada.”).
+- O **cabeçalho lê o nome direto do banco** a cada render do layout: renomear em
+  “Minha conta” reflete imediatamente sem novo login (permissões continuam vindo
+  do JWT — ver 17.3).
+- Formulário no cliente valida confirmação de senha; os 3 campos de senha ficam
+  opcionais (deixar em branco mantém a atual).
 
 ---
 
@@ -266,7 +298,10 @@ Todo movimento grava: produto, quantidade, usuário, almoxarifado de origem e/ou
 - Obrigatórios: `productId`, `warehouseId`, `quantity`. Produto deve existir e estar **ativo**
   (400 “Produto inativo ou inexistente.”).
 - `type` (opcional) precisa pertencer aos 5 tipos de entrada; `documentRef`/`notes` opcionais.
-- `quantity <= 0` → 400 “Quantidade de entrada deve ser maior que zero.”
+- `quantity` precisa ser **numérica, finita e > 0**: `0`/vazio caem no 400 de obrigatórios;
+  string não numérica (`"abc"`), `Infinity` (`"1e999"`) ou negativo → 400 “Informe uma
+  quantidade numérica maior que zero.” — validação ocorre **antes** de tocar no saldo
+  (`Number()` sem `isFinite` deixaria `NaN` escapar das comparações).
 - Sucesso: 201 `{ movement }` + auditoria `STOCK_ENTRY`.
 
 ### 7.4 Saída manual — `POST /api/movimentacoes/saida`
@@ -445,6 +480,17 @@ Somente leitura; KPIs calculados em `lib/dashboard/metrics.ts`:
 Bloco extra: **Estoque por almoxarifado** — para cada almoxarifado acessível ativo,
 `Físico: X · Disponível: Y`.
 
+Além dos KPIs:
+
+- **Cards são clicáveis** (drill-down): Produtos ativos → `/produtos`; Abaixo do mínimo →
+  `/estoque?situacao=baixo`; Sem estoque → `/estoque?situacao=zerado`; Solicitações
+  pendentes → `/solicitacoes`; Em atendimento → `/solicitacoes?status=EM_ATENDIMENTO`;
+  Transferências pendentes → `/transferencias`; Saldo físico total → `/estoque`.
+  “Movimentações hoje” não tem link (mistura entradas e saídas).
+- **Ações rápidas** — bloco acima dos cards com um atalho por permissão: Nova entrada e
+  Nova saída (`stock.move`), Nova solicitação (`requests.create`), Nova transferência
+  (`transfers.manage`), Novo inventário (`inventory.manage`), Novo produto (`products.manage`).
+
 ---
 
 ## 12. Relatórios
@@ -569,12 +615,53 @@ Sempre `{ "error": "<mensagem em pt-BR>" }`:
 Sidebar (12 links, nesta ordem): **Dashboard, Produtos, Estoque, Entradas, Saídas,
 Solicitações, Transferências, Inventário, Relatórios, Usuários, Auditoria, Configurações**.
 Item ativo por prefixo de rota; cabeçalho do sidebar marca “SIGAS Saúde / Gestão de
-Almoxarifado”. O header mostra nome do usuário, perfil (role) e botão “Sair”.
+Almoxarifado”. O header mostra botão **hambúrguer** (somente abaixo de `md`), nome do
+usuário (link para **Minha conta**), perfil (role), links “Ajuda” e “Minha conta” e
+botão “Sair”.
 
-- Os links **não são filtrados por permissão** (qualquer perfil vê todos); cada página
-  aplica seu próprio gate com painel “Sem permissão” + link de volta.
+- Os links **são filtrados por permissão** no layout do dashboard: some de
+  **Relatórios** quem não tem `reports.view`, de **Usuários** quem não tem
+  `users.manage`, de **Auditoria** quem não tem `audit.view` e de **Configurações**
+  quem não tem nenhuma permissão de aba (`warehouses.manage`/`sectors.manage`/
+  `products.manage`) nem `warehouses.manage` de parâmetros. As páginas continuam
+  protegidas por trás (gate individual + API), mesmo digitando a URL direto.
 - Estados vazios e mensagens de erro são exibidos inline nos formulários client
   (após falha de conexão ou validação do servidor).
+
+### 16.1 Simplicidade de uso (pacote de UX)
+
+Medidas para reduzir cliques e erros de preenchimento, **sem alterar regra de negócio**:
+
+1. **Menu no celular** — abaixo de `md` a sidebar vira um **drawer** aberto pelo botão
+   hambúrguer do cabeçalho (`aria-label="Abrir menu"`); fecha ao navegar (troca de rota)
+   ou clicar no fundo. No desktop a sidebar continua estática e filtrada (acima).
+2. **Dashboard acionável** — cards clicáveis e bloco **Ações rápidas** por permissão
+   (ver §11).
+3. **Pré-seleção de almoxarifado** (`lib/form/warehouse-prefs.ts`, aplicada em entrada,
+   saída, transferência de origem e inventário): com **um único** almoxarifado acessível
+   ele já vem selecionado (valor idêntico no servidor e no cliente — sem divergência de
+   hidratação); com vários, restaura o **último usado** (`localStorage` lido via
+   `useSyncExternalStore`, assumido após a hidratação) e grava após cada envio
+   bem-sucedido. O botão “Limpar” de entrada/saída **mantém** o almoxarifado escolhido.
+   Na solicitação a origem **não** é pré-preenchida (o default “A definir no
+   atendimento” é intencional).
+4. **Busca nos seletores de produto** (`components/ui/product-select.tsx`) — com mais de
+   15 produtos aparece um campo “Filtrar por código ou nome” acima do `<select>`.
+   Usado em entrada, saída, solicitação e transferência. O item selecionado permanece
+   visível mesmo sob filtro; na transferência os produtos já usados nas linhas seguem
+   desabilitados.
+5. **Formulário de produto com “Opções avançadas”** — mínimo/máximo, ponto de
+   reordenação, descrição, observações, lote e status recolhidos atrás de um toggle
+   (abre sozinho na edição quando já há valor) + dicas curtas em cada campo (ver 5.4).
+6. **Chips de situação no estoque** (`/estoque?situacao=baixo|zerado`) — filtros em
+   1 clique: Todos / Abaixo do mínimo / Sem estoque. O chip recorta a **listagem** e o
+   card “Itens listados”; os demais cards continuam resumindo o conjunto completo.
+   Com chip ativo só produtos **ativos** entram (mesma contagem do dashboard) e a
+   mensagem vazia cita a situação. Valor de `situacao` inválido é ignorado.
+7. **Página Ajuda (`/ajuda`)** — fluxos passo a passo (entradas, saídas, solicitações,
+   transferências, inventários, relatórios), tabela de perfis, glossário e link para
+   Minha conta. Qualquer perfil autenticado acessa (anônimo → 307); linkada no
+   cabeçalho de todas as páginas.
 
 ---
 
@@ -586,17 +673,11 @@ Fatos conhecidos do código que devem ser considerados em evoluções:
    nenhum fluxo reserva estoque; disponível = físico.
 2. **Concorrência sem lock de linha** — a leitura do saldo na saída não usa `FOR UPDATE`;
    baixas simultâneas extremas dependem da transação + constraints.
-3. **`NaN` nas quantidades manuais** — `POST /movimentacoes/entrada|saida` converte com
-   `Number()` sem `Number.isFinite` (uma string não numérica pode escapar das comparações).
-4. **Claims do JWT ficam defasados** — troca de perfil/almoxarifados exige novo login.
-5. **Sidebar sem filtro de permissões** — exibe todos os módulos para todos os perfis.
-6. **Produtos não têm edição** por API (apenas criação); alterações de cadastro de produto
-   não existem.
-7. **Busca em `/api/estoque` (`q`)** usa `contains` sem `mode: "insensitive"` no Postgres
-   (sensível a maiúsculas/minúsculas), ao contrário dos filtros de página.
-8. **Status `RASCUNHO`** de solicitação existe na máquina de estados mas nunca é usado.
-9. **Não há notificações/e-mails** — todo acompanhamento é feito pela própria interface.
-10. **Relatórios de solicitações/transferências truncam em 300 registros** por período
+3. **Claims do JWT ficam defasados** — troca de perfil/almoxarifados exige novo login.
+   O nome exibido no cabeçalho é a exceção: vem do banco a cada render (6.1).
+4. **Status `RASCUNHO`** de solicitação existe na máquina de estados mas nunca é usado.
+5. **Não há notificações/e-mails** — todo acompanhamento é feito pela própria interface.
+6. **Relatórios de solicitações/transferências truncam em 300 registros** por período
     (marcados com sufixo `+` quando atingem o limite).
 
 ---
@@ -607,7 +688,9 @@ Fatos conhecidos do código que devem ser considerados em evoluções:
 |---|---|---|
 | GET | `/api/auth/*` (NextAuth: csrf, session, callback) | público |
 | POST | `/api/produtos` | `products.manage` |
-| GET | `/api/estoque` (`productId`, `warehouseId`, `q`) | `stock.view` |
+| PATCH | `/api/produtos/[id]` (edição parcial, inclusive `active`) | `products.manage` |
+| PATCH | `/api/conta` (próprio nome/senha; exige `currentPassword` para trocar) | qualquer autenticado |
+| GET | `/api/estoque` (`productId`, `warehouseId`, `q` — `q` case-insensitive) | `stock.view` |
 | POST | `/api/movimentacoes/entrada` | `stock.move` + acesso ao almoxarifado |
 | POST | `/api/movimentacoes/saida` | `stock.move` + acesso ao almoxarifado |
 | POST | `/api/movimentacoes/comprovante` | `stock.view` + acesso à origem |
@@ -632,11 +715,11 @@ Todas (exceto `/api/auth`) passam pelo middleware: anônimo → 307.
 | Família | Ações | Contexto típico |
 |---|---|---|
 | Estoque (`STOCK_`) | `STOCK_ENTRY`, `STOCK_EXIT`, `STOCK_RECEIPT` | `{productId, warehouseId, quantity}` / `{entreguePor, recebidoPor, ...}` |
-| Produtos (`PRODUCT_`) | `PRODUCT_CREATE` | `{code, name}` |
+| Produtos (`PRODUCT_`) | `PRODUCT_CREATE`, `PRODUCT_UPDATE` | `{code, name}` / `{code, changes: {campo: {from, to}}}` |
 | Solicitações (`REQUEST_`) | `REQUEST_CREATE`, `REQUEST_ANALYZE`, `REQUEST_APPROVE` (mode total/parcial), `REQUEST_REJECT`, `REQUEST_CANCEL`, `REQUEST_FULFILL_START`, `REQUEST_FULFILL`, `REQUEST_FULFILL_REOPEN` | `{number, ...}` |
 | Transferências (`TRANSFER_`) | `TRANSFER_CREATE`, `TRANSFER_EXIT`, `TRANSFER_RECEIPT`, `TRANSFER_CANCEL` | `{number, from, to, items}` |
 | Inventários (`INVENTORY_`) | `INVENTORY_CREATE`, `INVENTORY_COUNT_START`, `INVENTORY_COUNT_SAVE`, `INVENTORY_COUNT_FINISH`, `INVENTORY_RECOUNT`, `INVENTORY_ADJUST`, `INVENTORY_CLOSE`, `INVENTORY_CANCEL` | `{warehouseId, items, ...}` |
-| Usuários (`USER_`) | `USER_CREATE`, `USER_UPDATE`, `USER_PASSWORD_RESET`, `USER_ACTIVATE`, `USER_DEACTIVATE` | `{email, role, changes}` |
+| Usuários (`USER_`) | `USER_CREATE`, `USER_UPDATE`, `USER_PASSWORD_RESET`, `USER_ACTIVATE`, `USER_DEACTIVATE` | `{email, role, changes}` — em “Minha conta” vem com `self: true` |
 | Catálogos (`CATALOG_`) | `CATALOG_CREATE`, `CATALOG_UPDATE` | `{code, name}` / `{changes}` |
 | Parâmetros (`SETTINGS_`) | `SETTINGS_UPDATE` | `{keys, orgName}` |
 

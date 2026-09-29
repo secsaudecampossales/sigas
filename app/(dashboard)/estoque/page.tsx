@@ -12,7 +12,12 @@ const PAGE_SIZE = 25;
 const nf = new Intl.NumberFormat("pt-BR");
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; almox?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    almox?: string;
+    situacao?: string;
+    page?: string;
+  }>;
 };
 
 function buildHref(input: { q: string; almox: string; page: number }) {
@@ -39,9 +44,19 @@ function statusBadge(active: boolean, physicalQty: number, minStock: number) {
 
 export default async function EstoquePage({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions);
-  const { q = "", almox = "", page: pageParam = "1" } = await searchParams;
+  const {
+    q = "",
+    almox = "",
+    situacao: situacaoParam = "",
+    page: pageParam = "1",
+  } = await searchParams;
 
   const query = q.trim();
+  // Chip de situação: só valores conhecidos (o resto é ignorado).
+  const situacao =
+    situacaoParam === "baixo" || situacaoParam === "zerado"
+      ? situacaoParam
+      : "";
   const requestedPage = Number.parseInt(pageParam, 10);
   const page = Number.isNaN(requestedPage) || requestedPage < 1 ? 1 : requestedPage;
 
@@ -102,6 +117,17 @@ export default async function EstoquePage({ searchParams }: PageProps) {
   });
 
   const activeStocks = stocks.filter((stock) => stock.product.active);
+
+  // Chip "situação": recorta a listagem (só produtos ativos, alinhado aos
+  // contadores do dashboard). Sem chip, mantém tudo — inclusive inativos.
+  const visibleStocks = !situacao
+    ? stocks
+    : activeStocks.filter((stock) =>
+        situacao === "baixo"
+          ? isBelowMinimum(stock.physicalQty, stock.product.minStock)
+          : stock.physicalQty <= 0,
+      );
+
   const belowMinimum = activeStocks.filter((stock) =>
     isBelowMinimum(stock.physicalQty, stock.product.minStock),
   ).length;
@@ -121,9 +147,9 @@ export default async function EstoquePage({ searchParams }: PageProps) {
     0,
   );
 
-  const totalPages = Math.max(1, Math.ceil(stocks.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(visibleStocks.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pageRows = stocks.slice(
+  const pageRows = visibleStocks.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
@@ -143,17 +169,20 @@ export default async function EstoquePage({ searchParams }: PageProps) {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Itens listados"
-          value={nf.format(stocks.length)}
+          value={nf.format(visibleStocks.length)}
           hint={
-            query || selectedWarehouseId
-              ? "Resultado do filtro atual"
-              : "Com saldo registrado"
+            situacao
+              ? "Resultado do chip de situação"
+              : query || selectedWarehouseId
+                ? "Resultado do filtro atual"
+                : "Com saldo registrado"
           }
         />
         <StatCard
           title="Abaixo do mínimo"
           value={nf.format(belowMinimum)}
           hint={`${nf.format(outOfStock)} sem estoque`}
+          href="/estoque?situacao=baixo"
         />
         <StatCard
           title="Saldo físico total (un.)"
@@ -167,10 +196,11 @@ export default async function EstoquePage({ searchParams }: PageProps) {
       </div>
 
       <StockFilters
-        key={`${query}|${selectedWarehouseId}`}
+        key={`${query}|${selectedWarehouseId}|${situacao}`}
         warehouses={accessibleWarehouses}
         query={query}
         warehouseId={selectedWarehouseId}
+        situacao={situacao}
       />
 
       <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -254,17 +284,25 @@ export default async function EstoquePage({ searchParams }: PageProps) {
           </table>
         </div>
 
-        {stocks.length === 0 ? (
+        {visibleStocks.length === 0 ? (
           <p className="border-t px-4 py-8 text-center text-sm text-slate-500">
-            Nenhum item de estoque encontrado
-            {query ? (
-              <>
-                {" "}
-                para <span className="font-medium">“{query}”</span>
-              </>
-            ) : null}
-            . Ajuste os filtros ou verifique se o produto já possui saldo
-            registrado.
+            {situacao === "baixo"
+              ? "Nenhum item abaixo do mínimo com os filtros atuais."
+              : situacao === "zerado"
+                ? "Nenhum item sem estoque com os filtros atuais."
+                : (
+                    <>
+                      Nenhum item de estoque encontrado
+                      {query ? (
+                        <>
+                          {" "}
+                          para <span className="font-medium">“{query}”</span>
+                        </>
+                      ) : null}
+                      . Ajuste os filtros ou verifique se o produto já possui
+                      saldo registrado.
+                    </>
+                  )}
           </p>
         ) : null}
       </section>
@@ -272,8 +310,8 @@ export default async function EstoquePage({ searchParams }: PageProps) {
       {totalPages > 1 ? (
         <nav className="flex items-center justify-between text-sm">
           <span className="text-slate-600">
-            Página {currentPage} de {totalPages} ({nf.format(stocks.length)}{" "}
-            itens)
+            Página {currentPage} de {totalPages} (
+            {nf.format(visibleStocks.length)} itens)
           </span>
           <span className="flex gap-2">
             {currentPage > 1 ? (
