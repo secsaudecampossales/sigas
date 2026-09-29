@@ -203,7 +203,9 @@ export default async function AjudaPage() {
           >
             Minha conta
           </Link>{" "}
-          (link no cabeçalho). Para alterar perfil, almoxarifados ou status de
+          (link no cabeçalho). O botão de sol/lua no cabeçalho alterna o{" "}
+          <strong>modo escuro</strong> — a escolha fica salva neste navegador.
+          Para alterar perfil, almoxarifados ou status de
           outro usuário, acesse Usuários (somente administradores).
         </p>
       </section>

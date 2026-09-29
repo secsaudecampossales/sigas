@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 type AppHeaderProps = {
   userName?: string | null;
@@ -52,6 +53,7 @@ export function AppHeader({ userName, userRole, onMenu }: AppHeaderProps) {
         >
           Minha conta
         </Link>
+        <ThemeToggle />
         <Button
           type="button"
           variant="outline"

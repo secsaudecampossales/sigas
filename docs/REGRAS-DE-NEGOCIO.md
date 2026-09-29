@@ -616,8 +616,8 @@ Sidebar (12 links, nesta ordem): **Dashboard, Produtos, Estoque, Entradas, Saíd
 Solicitações, Transferências, Inventário, Relatórios, Usuários, Auditoria, Configurações**.
 Item ativo por prefixo de rota; cabeçalho do sidebar marca “SIGAS Saúde / Gestão de
 Almoxarifado”. O header mostra botão **hambúrguer** (somente abaixo de `md`), nome do
-usuário (link para **Minha conta**), perfil (role), links “Ajuda” e “Minha conta” e
-botão “Sair”.
+usuário (link para **Minha conta**), perfil (role), links “Ajuda” e “Minha conta”,
+botão de **modo escuro** (sol/lua) e botão “Sair”.
 
 - Os links **são filtrados por permissão** no layout do dashboard: some de
   **Relatórios** quem não tem `reports.view`, de **Usuários** quem não tem
@@ -662,6 +662,18 @@ Medidas para reduzir cliques e erros de preenchimento, **sem alterar regra de ne
    transferências, inventários, relatórios), tabela de perfis, glossário e link para
    Minha conta. Qualquer perfil autenticado acessa (anônimo → 307); linkada no
    cabeçalho de todas as páginas.
+8. **Modo escuro** — botão sol/lua no cabeçalho (`components/layout/theme-toggle.tsx`)
+   alterna a classe `.dark` no `<html>`; preferência salva em `localStorage`
+   (`sigas:tema`) e padrão = tema do sistema. O script `theme-init`
+   (`app/layout.tsx`) aplica o tema **antes da primeira pintura** (sem flash) e o
+   `<html>` usa `suppressHydrationWarning`. O tema é 100% CSS (`app/globals.css`,
+   bloco `.dark`): sobrescreve os utilitários de cor usados no app — superfícies,
+   rampa de textos slate, bordas, divisores e badges de situação (fundos 100 → tom
+   escuro da família, textos 700/800 → tom 300) — sem tocar no modo claro, que
+   permanece idêntico (as regras só casam sob ancestral `.dark`). `color-scheme:
+   dark` ajusta controles nativos e scrollbars; cores de marca (`bg-sky-600/700`,
+   `text-white`, anéis de foco) são mantidas. O ícone usa a variante `dark:`
+   habilitada por `@custom-variant dark` no Tailwind v4.
 
 ---
 
