@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { RequestStatus, TransferStatus } from "@prisma/client";
+import { RequestStatus, TransferStatus } from "@/generated/prisma/client";
 import { startOfDay } from "date-fns";
 import { availableQuantity, isBelowMinimum } from "@/lib/stock/calculations";
 import {

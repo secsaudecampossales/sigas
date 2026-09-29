@@ -1,12 +1,20 @@
+import "dotenv/config";
 import bcrypt from "bcryptjs";
+import { PrismaPg } from "@prisma/adapter-pg";
 import {
   PrismaClient,
   UserRole,
   WarehouseType,
   ProductType,
-} from "@prisma/client";
+} from "../generated/prisma/client";
 
-const prisma = new PrismaClient();
+// Prisma 7 exige um driver adapter em todo `new PrismaClient()`.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  }),
+});
 
 async function main() {
   const insumos = await prisma.warehouse.upsert({

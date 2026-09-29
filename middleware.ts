@@ -27,5 +27,6 @@ export const config = {
     "/api/transferencias/:path*",
     "/api/inventarios/:path*",
     "/api/usuarios/:path*",
+    "/api/configuracoes/:path*",
   ],
 };

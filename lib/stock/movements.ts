@@ -1,4 +1,4 @@
-import { MovementType, Prisma } from "@prisma/client";
+import { MovementType, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { availableQuantity } from "./calculations";
 
@@ -51,7 +51,9 @@ export async function applyStockEntry(
       where: { idempotencyKey: ctx.idempotencyKey },
     });
     if (existing) {
-      return existing;
+      // Reenvio do mesmo request: não mexe no estoque e sinaliza `created:
+      // false` para a rota não duplicar o audit log.
+      return { movement: existing, created: false };
     }
   }
 
@@ -73,7 +75,7 @@ export async function applyStockEntry(
     },
   });
 
-  return tx.stockMovement.create({
+  const movement = await tx.stockMovement.create({
     data: {
       type: ctx.type,
       productId: line.productId,
@@ -88,6 +90,8 @@ export async function applyStockEntry(
       idempotencyKey: ctx.idempotencyKey,
     },
   });
+
+  return { movement, created: true };
 }
 
 export async function applyStockExit(
@@ -104,7 +108,9 @@ export async function applyStockExit(
       where: { idempotencyKey: ctx.idempotencyKey },
     });
     if (existing) {
-      return existing;
+      // Reenvio do mesmo request: não mexe no estoque e sinaliza `created:
+      // false` para a rota não duplicar o audit log.
+      return { movement: existing, created: false };
     }
   }
 
@@ -120,7 +126,7 @@ export async function applyStockExit(
     data: { physicalQty: { decrement: line.quantity } },
   });
 
-  return tx.stockMovement.create({
+  const movement = await tx.stockMovement.create({
     data: {
       type: ctx.type,
       productId: line.productId,
@@ -135,4 +141,6 @@ export async function applyStockExit(
       idempotencyKey: ctx.idempotencyKey,
     },
   });
+
+  return { movement, created: true };
 }

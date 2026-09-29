@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma/client";
 import { roleHasPermission } from "@/lib/permissions/roles";
 import { canAccessWarehouse } from "@/lib/permissions/warehouse-access";
 

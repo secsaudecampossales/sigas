@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
 import { getDashboardMetrics } from "@/lib/dashboard/metrics";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma/client";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);

@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "./options";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma/client";
 import { roleHasPermission, type Permission } from "@/lib/permissions/roles";
 
 export async function getSessionUser() {

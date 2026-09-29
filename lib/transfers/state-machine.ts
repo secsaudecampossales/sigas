@@ -1,8 +1,13 @@
-import { TransferStatus } from "@prisma/client";
+import { TransferStatus } from "@/generated/prisma/client";
 
+/**
+ * PENDENTE → (saída confirmada na origem) → SAIDA_CONFIRMADA → (recebimento
+ * no destino) → RECEBIDA. Cancelamento só antes da saída: depois disso o
+ * estoque já saiu da origem e o caminho certo é concluir o recebimento.
+ */
 const allowedTransitions: Record<TransferStatus, TransferStatus[]> = {
   PENDENTE: ["SAIDA_CONFIRMADA", "CANCELADA"],
-  SAIDA_CONFIRMADA: ["RECEBIDA", "CANCELADA"],
+  SAIDA_CONFIRMADA: ["RECEBIDA"],
   RECEBIDA: [],
   CANCELADA: [],
 };
@@ -14,7 +19,7 @@ export function canTransitionTransfer(
   return allowedTransitions[from].includes(to);
 }
 
-export function assertTransferTransition(
+export function assertTransferStatus(
   from: TransferStatus,
   to: TransferStatus,
 ): void {

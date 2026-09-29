@@ -1,4 +1,4 @@
-import { MovementType } from "@prisma/client";
+import { MovementType } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/session";
@@ -6,6 +6,7 @@ import { handleApiError } from "@/lib/api/errors";
 import { applyStockEntry } from "@/lib/stock/movements";
 import { assertWarehouseAccess } from "@/lib/permissions/warehouse-access";
 import { writeAuditLog } from "@/lib/audit/log";
+import { ENTRY_TYPES } from "@/lib/stock/entry-types";
 
 type EntryBody = {
   productId: string;
@@ -29,6 +30,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // O tipo precisa ser de entrada: um SAIDA_* aqui baixaria o estoque e
+    // apareceria na página de saídas com o sinal trocado.
+    if (body.type && !(ENTRY_TYPES as readonly string[]).includes(body.type)) {
+      return NextResponse.json(
+        { error: "Tipo de entrada inválido." },
+        { status: 400 },
+      );
+    }
+
     assertWarehouseAccess(
       { role: user.role, warehouseIds: user.warehouseIds },
       body.warehouseId,
@@ -44,7 +54,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const movement = await prisma.$transaction((tx) =>
+    const { movement, created } = await prisma.$transaction((tx) =>
       applyStockEntry(
         {
           productId: body.productId,
@@ -62,19 +72,22 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    await writeAuditLog({
-      userId: user.id,
-      action: "STOCK_ENTRY",
-      entity: "StockMovement",
-      entityId: movement.id,
-      context: {
-        productId: body.productId,
-        warehouseId: body.warehouseId,
-        quantity: body.quantity,
-      },
-    });
+    // Replay de idempotência (`created: false`) não gera novo evento de auditoria.
+    if (created) {
+      await writeAuditLog({
+        userId: user.id,
+        action: "STOCK_ENTRY",
+        entity: "StockMovement",
+        entityId: movement.id,
+        context: {
+          productId: body.productId,
+          warehouseId: body.warehouseId,
+          quantity: body.quantity,
+        },
+      });
+    }
 
-    return NextResponse.json({ movement }, { status: 201 });
+    return NextResponse.json({ movement }, { status: created ? 201 : 200 });
   } catch (error) {
     return handleApiError(error);
   }

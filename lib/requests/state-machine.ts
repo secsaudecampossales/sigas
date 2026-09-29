@@ -1,4 +1,4 @@
-import { RequestStatus } from "@prisma/client";
+import { RequestStatus } from "@/generated/prisma/client";
 
 const allowedTransitions: Record<RequestStatus, RequestStatus[]> = {
   RASCUNHO: ["PENDENTE", "CANCELADA"],
