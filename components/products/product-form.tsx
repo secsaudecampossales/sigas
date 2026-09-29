@@ -8,6 +8,23 @@ import { Label } from "@/components/ui/label";
 
 type Option = { id: string; name: string; code: string };
 
+/** Produto existente para edição (quando ausente, o formulário cria). */
+export type ProductInitial = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  categoryId: string;
+  unitId: string;
+  type: string;
+  minStock: number;
+  maxStock: number | null;
+  reorderPoint: number | null;
+  requiresBatch: boolean;
+  active: boolean;
+  notes: string | null;
+};
+
 const TYPE_LABELS: Record<string, string> = {
   INSUMO: "Insumo",
   MEDICAMENTO: "Medicamento",
@@ -18,23 +35,36 @@ const TYPE_LABELS: Record<string, string> = {
 export function ProductForm({
   categories,
   units,
+  initial,
 }: {
   categories: Option[];
   units: Option[];
+  initial?: ProductInitial;
 }) {
   const router = useRouter();
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [unitId, setUnitId] = useState("");
-  const [type, setType] = useState("INSUMO");
-  const [minStock, setMinStock] = useState("0");
-  const [maxStock, setMaxStock] = useState("");
-  const [reorderPoint, setReorderPoint] = useState("");
-  const [requiresBatch, setRequiresBatch] = useState(false);
-  const [active, setActive] = useState(true);
-  const [notes, setNotes] = useState("");
+  const editing = Boolean(initial);
+  const [code, setCode] = useState(initial?.code ?? "");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
+  const [unitId, setUnitId] = useState(initial?.unitId ?? "");
+  const [type, setType] = useState(initial?.type ?? "INSUMO");
+  const [minStock, setMinStock] = useState(String(initial?.minStock ?? 0));
+  const [maxStock, setMaxStock] = useState(
+    initial?.maxStock === null || initial?.maxStock === undefined
+      ? ""
+      : String(initial.maxStock),
+  );
+  const [reorderPoint, setReorderPoint] = useState(
+    initial?.reorderPoint === null || initial?.reorderPoint === undefined
+      ? ""
+      : String(initial.reorderPoint),
+  );
+  const [requiresBatch, setRequiresBatch] = useState(
+    initial?.requiresBatch ?? false,
+  );
+  const [active, setActive] = useState(initial?.active ?? true);
+  const [notes, setNotes] = useState(initial?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,24 +74,27 @@ export function ProductForm({
     setError(null);
 
     try {
-      const response = await fetch("/api/produtos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          name,
-          description,
-          categoryId,
-          unitId,
-          type,
-          minStock,
-          maxStock,
-          reorderPoint,
-          requiresBatch,
-          active,
-          notes,
-        }),
-      });
+      const response = await fetch(
+        editing ? `/api/produtos/${initial!.id}` : "/api/produtos",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code,
+            name,
+            description,
+            categoryId,
+            unitId,
+            type,
+            minStock,
+            maxStock,
+            reorderPoint,
+            requiresBatch,
+            active,
+            notes,
+          }),
+        },
+      );
 
       const data = await response.json().catch(() => null);
 
@@ -236,12 +269,18 @@ export function ProductForm({
 
       <div className="flex gap-3">
         <Button type="submit" disabled={saving}>
-          {saving ? "Salvando..." : "Salvar produto"}
+          {saving
+            ? "Salvando..."
+            : editing
+              ? "Salvar alterações"
+              : "Salvar produto"}
         </Button>
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/produtos")}
+          onClick={() =>
+            router.push(editing ? `/produtos/${initial!.id}` : "/produtos")
+          }
         >
           Cancelar
         </Button>

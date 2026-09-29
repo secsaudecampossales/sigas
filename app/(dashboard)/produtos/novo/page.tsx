@@ -1,7 +1,11 @@
-import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth";
 import Link from "next/link";
+import { authOptions } from "@/lib/auth/options";
+import { prisma } from "@/lib/db";
+import { roleHasPermission } from "@/lib/permissions/roles";
 import { Button } from "@/components/ui/button";
 import { ProductForm } from "@/components/products/product-form";
+import { UserRole } from "@/generated/prisma/client";
 
 async function getOptions() {
   const [categories, units] = await Promise.all([
@@ -20,6 +24,27 @@ async function getOptions() {
 }
 
 export default async function NovoProdutoPage() {
+  const session = await getServerSession(authOptions);
+  const role = session!.user.role as UserRole;
+
+  if (!roleHasPermission(role, "products.manage")) {
+    return (
+      <div className="mx-auto max-w-lg rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <h1 className="text-lg font-medium text-slate-900">Sem permissão</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Seu perfil não pode cadastrar produtos. Fale com a coordenação se
+          isso for necessário para o seu trabalho.
+        </p>
+        <Link
+          href="/dashboard"
+          className="mt-4 inline-block text-sm font-medium text-sky-700 hover:underline"
+        >
+          Voltar ao dashboard
+        </Link>
+      </div>
+    );
+  }
+
   const { categories, units } = await getOptions();
 
   return (

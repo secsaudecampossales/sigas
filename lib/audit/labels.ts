@@ -7,6 +7,7 @@ export const ACTION_LABELS: Record<string, string> = {
   STOCK_EXIT: "Saída de estoque",
   STOCK_RECEIPT: "Comprovante de saída emitido",
   PRODUCT_CREATE: "Produto criado",
+  PRODUCT_UPDATE: "Produto atualizado",
   REQUEST_CREATE: "Solicitação criada",
   REQUEST_ANALYZE: "Solicitação analisada",
   REQUEST_APPROVE: "Solicitação aprovada",

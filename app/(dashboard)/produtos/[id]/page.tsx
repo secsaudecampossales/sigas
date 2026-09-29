@@ -1,6 +1,10 @@
+import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
+import { authOptions } from "@/lib/auth/options";
+import { roleHasPermission } from "@/lib/permissions/roles";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { UserRole } from "@/generated/prisma/client";
 
 // Server component to fetch a single product with its relations
 const UUID_RE =
@@ -33,6 +37,11 @@ export default async function ProdutoDetailPage({
 }) {
   const { id } = await params;
   const product = await getProduct(id);
+  const session = await getServerSession(authOptions);
+  const canEdit = roleHasPermission(
+    session!.user.role as UserRole,
+    "products.manage",
+  );
 
   if (!product) {
     return (
@@ -49,9 +58,16 @@ export default async function ProdutoDetailPage({
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Detalhes do Produto</h1>
-        <Link href="/produtos" passHref>
-          <Button variant="outline" size="sm">Voltar</Button>
-        </Link>
+        <div className="flex gap-2">
+          {canEdit ? (
+            <Link href={`/produtos/${product.id}/editar`} passHref>
+              <Button size="sm">Editar</Button>
+            </Link>
+          ) : null}
+          <Link href="/produtos" passHref>
+            <Button variant="outline" size="sm">Voltar</Button>
+          </Link>
+        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border p-4">

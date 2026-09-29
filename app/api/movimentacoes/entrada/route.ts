@@ -30,6 +30,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Guarda de sanidade: `Number("abc")` é NaN e escaparia das comparações
+    // de saldo; quantidade também precisa ser positiva.
+    const quantity = Number(body.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return NextResponse.json(
+        { error: "Informe uma quantidade numérica maior que zero." },
+        { status: 400 },
+      );
+    }
+
     // O tipo precisa ser de entrada: um SAIDA_* aqui baixaria o estoque e
     // apareceria na página de saídas com o sinal trocado.
     if (body.type && !(ENTRY_TYPES as readonly string[]).includes(body.type)) {
@@ -59,7 +69,7 @@ export async function POST(request: NextRequest) {
         {
           productId: body.productId,
           warehouseId: body.warehouseId,
-          quantity: Number(body.quantity),
+          quantity,
         },
         {
           userId: user.id,
@@ -82,7 +92,7 @@ export async function POST(request: NextRequest) {
         context: {
           productId: body.productId,
           warehouseId: body.warehouseId,
-          quantity: body.quantity,
+          quantity,
         },
       });
     }

@@ -33,8 +33,9 @@ const navItems = [
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ hiddenPaths }: { hiddenPaths?: string[] }) {
   const pathname = usePathname();
+  const hidden = new Set(hiddenPaths ?? []);
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white md:flex md:flex-col">
@@ -45,25 +46,27 @@ export function AppSidebar() {
         <p className="text-sm text-slate-600">Gestão de Almoxarifado</p>
       </div>
       <nav className="flex-1 space-y-1 p-3">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active =
-            pathname === href || pathname.startsWith(`${href}/`);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-sky-50 text-sky-900"
-                  : "text-slate-700 hover:bg-slate-50",
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              {label}
-            </Link>
-          );
-        })}
+        {navItems
+          .filter(({ href }) => !hidden.has(href))
+          .map(({ href, label, icon: Icon }) => {
+            const active =
+              pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-sky-50 text-sky-900"
+                    : "text-slate-700 hover:bg-slate-50",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                {label}
+              </Link>
+            );
+          })}
       </nav>
     </aside>
   );
